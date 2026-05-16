@@ -43,7 +43,7 @@ export default function Personenschutz() {
                     variants={container}
                     initial="hidden"
                     animate="visible"
-                    className="relative z-10 max-w-6xl mx-auto px-6 py-32"
+                    className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24 md:py-32"
                 >
                     <motion.span
                         variants={fadeUp}
@@ -54,7 +54,7 @@ export default function Personenschutz() {
 
                     <motion.h1
                         variants={fadeUp}
-                        className="text-4xl md:text-6xl font-bold mt-4 mb-8 text-white"
+                        className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mt-4 mb-8 text-white"
                     >
                         Personenschutz
                     </motion.h1>
@@ -76,7 +76,7 @@ export default function Personenschutz() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6"
             >
                 <div className="max-w-5xl mx-auto">
                     <motion.p
@@ -159,7 +159,7 @@ export default function Personenschutz() {
                             variants={fadeUp}
                             className="relative pl-8 border-l border-[#7BA8B0]/40"
                         >
-                            <h3 className="text-2xl font-bold mb-4 text-white">
+                            <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-white">
                                 {block.title}
                             </h3>
                             <p className="text-lg leading-relaxed text-gray-300 max-w-4xl">
@@ -176,7 +176,7 @@ export default function Personenschutz() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6 bg-[#020617]"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 bg-[#020617]"
             >
                 <div className="max-w-4xl mx-auto text-center">
                     <motion.p
@@ -191,7 +191,7 @@ export default function Personenschutz() {
                     <motion.div variants={fadeUp}>
                         <Link
                             href="/kontakt"
-                            className="inline-block bg-[#7BA8B0] px-14 py-5 rounded-full text-lg font-bold text-[#020617] hover:bg-[#8FBBC3] transition shadow-xl"
+                            className="inline-block bg-[#7BA8B0] px-8 sm:px-14 py-3 sm:py-5 rounded-full text-base sm:text-lg font-bold text-[#020617] hover:bg-[#8FBBC3] transition shadow-xl"
                         >
                             Persönliche Beratung anfragen
                         </Link>

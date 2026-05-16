@@ -43,11 +43,11 @@ export default function Objektschutz() {
                     variants={container}
                     initial="hidden"
                     animate="visible"
-                    className="relative z-10 max-w-6xl mx-auto px-6 py-32 text-center"
+                    className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24 md:py-32 text-center"
                 >
                     <motion.h1
                         variants={fadeUp}
-                        className="text-4xl md:text-6xl font-bold text-[#1E293B] mb-4"
+                        className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-[#1E293B] mb-4"
                     >
                         Objektschutz
                     </motion.h1>
@@ -67,7 +67,7 @@ export default function Objektschutz() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6 max-w-5xl mx-auto"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 max-w-5xl mx-auto"
             >
                 <motion.p variants={fadeUp} className="text-lg md:text-xl leading-relaxed mb-12">
                     Der Objektschutz von SicherPro Wachschutz stellt die Sicherheit von Personen, Sachwerten und
@@ -75,7 +75,7 @@ export default function Objektschutz() {
                     zu minimieren – damit Ihr Unternehmen und Ihre Einrichtungen rund um die Uhr geschützt sind.
                 </motion.p>
 
-                <div className="space-y-16">
+                <div className="space-y-10 sm:space-y-12 md:space-y-16">
                     {[
                         {
                             title: 'Dauerhafte oder zeitlich definierte Präsenz',
@@ -110,8 +110,8 @@ export default function Objektschutz() {
                             variants={fadeUp}
                             className="relative pl-8 border-l-4 border-[#1E293B]/40"
                         >
-                            <h3 className="text-2xl font-bold mb-4">{block.title}</h3>
-                            <p className="text-lg leading-relaxed max-w-3xl">{block.text}</p>
+                            <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">{block.title}</h3>
+                            <p className="text-base sm:text-lg leading-relaxed max-w-3xl">{block.text}</p>
                         </motion.div>
                     ))}
                 </div>
@@ -123,16 +123,16 @@ export default function Objektschutz() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6 bg-[#1E293B] text-white"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 bg-[#1E293B] text-white"
             >
                 <div className="max-w-4xl mx-auto text-center space-y-6">
-                    <motion.p variants={fadeUp} className="text-xl md:text-2xl leading-relaxed">
+                    <motion.p variants={fadeUp} className="text-lg sm:text-xl md:text-2xl leading-relaxed">
                         Sichern Sie Ihr Objekt professionell mit SicherPro Wachschutz – individuell, zuverlässig und rund um die Uhr.
                     </motion.p>
                     <motion.div variants={fadeUp}>
                         <Link
                             href="/kontakt"
-                            className="inline-block bg-[#7BA8B0] px-14 py-5 rounded-full text-lg font-bold text-[#1E293B] hover:bg-[#8FBBC3] transition shadow-lg"
+                            className="inline-block bg-[#7BA8B0] px-8 sm:px-14 py-3 sm:py-5 rounded-full text-base sm:text-lg font-bold text-[#1E293B] hover:bg-[#8FBBC3] transition shadow-lg"
                         >
                             Beratung anfragen
                         </Link>

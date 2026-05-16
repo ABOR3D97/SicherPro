@@ -43,11 +43,11 @@ export default function UnterkuenfteBewachung() {
                     variants={container}
                     initial="hidden"
                     animate="visible"
-                    className="relative z-10 max-w-6xl mx-auto px-6 py-28 text-white"
+                    className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20 md:py-28 text-white"
                 >
                     <motion.h1
                         variants={item}
-                        className="text-4xl md:text-6xl font-bold mb-6"
+                        className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6"
                     >
                         Bewachung von Unterkünften
                     </motion.h1>
@@ -68,7 +68,7 @@ export default function UnterkuenfteBewachung() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6"
             >
                 <div className="max-w-5xl mx-auto">
                     <motion.p
@@ -92,7 +92,7 @@ export default function UnterkuenfteBewachung() {
                 viewport={{ once: true }}
                 className="pb-24 px-6"
             >
-                <div className="max-w-6xl mx-auto space-y-12">
+                <div className="max-w-6xl mx-auto space-y-8 sm:space-y-12">
                     {[
                         {
                             title: 'Regelmäßige Kontroll- und Präsenzdienste',
@@ -140,9 +140,9 @@ export default function UnterkuenfteBewachung() {
                         <motion.div
                             key={i}
                             variants={item}
-                            className="bg-white rounded-2xl p-10 shadow-lg border-l-8 border-[#587D85]"
+                            className="bg-white rounded-2xl p-6 sm:p-8 md:p-10 shadow-lg border-l-8 border-[#587D85]"
                         >
-                            <h3 className="text-2xl font-bold mb-4 text-[#587D85]">
+                            <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-[#587D85]">
                                 {section.title}
                             </h3>
                             <p className="text-lg leading-relaxed">
@@ -159,7 +159,7 @@ export default function UnterkuenfteBewachung() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6 bg-[#2F2F2F] text-white"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 bg-[#2F2F2F] text-white"
             >
                 <div className="max-w-4xl mx-auto text-center">
                     <motion.p

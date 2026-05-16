@@ -16,3 +16,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// Schneller Fehlschlag bei CORS / Bucket-Problemen statt 60s SDK-Retry.
+storage.maxOperationRetryTime = 10_000;
+storage.maxUploadRetryTime = 10_000;
