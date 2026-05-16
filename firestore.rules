@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // Kontaktanfragen — nur Admin darf lesen/ändern.
+    // Anlegen NUR über die API-Route (/api/send-inquiry mit Admin-SDK).
+    // Wenn du das Anlegen über das Client-SDK erlaubst, ergänze hier eine
+    // create-Regel — solange du den API-Weg nutzt, false lassen.
+    match /inquiries/{doc} {
+      allow read, update, delete: if isAdmin();
+      allow create: if false;
+    }
+
+    // Pending-Admins — kompletter Lock-down. Wird nur via Admin-SDK
+    // (Register-Route + Approval-Route) angefasst.
+    match /pendingAdmins/{doc} {
+      allow read, write: if false;
+    }
+
+    // Website-Bilder — öffentlich lesbar, nur Admin schreibt.
+    match /config/websiteImages {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Alle anderen config-Dokumente (z. B. externalCosts) — nur Admin.
+    match /config/{doc} {
+      allow read, write: if isAdmin();
+    }
+
+    // Default: nichts erlaubt.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

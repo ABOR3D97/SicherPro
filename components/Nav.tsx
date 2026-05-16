@@ -1,12 +1,21 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useWebsiteImages } from '@/hooks/useWebsiteImages';
 
 interface NavProps {
     isScrolled: boolean;
 }
+
+const SERVICES = [
+    { slug: 'objektschutz', title: 'Objektschutz', desc: 'Schutz von Gebäuden & Anlagen' },
+    { slug: 'veranstaltungsschutz', title: 'Veranstaltungsschutz', desc: 'Sicherheit für Events' },
+    { slug: 'personenschutz', title: 'Personenschutz', desc: 'Schutz von Personen & VIPs' },
+    { slug: 'mobiler-wachdienst-revierkontrollen', title: 'Mobiler Wachdienst & Revierkontrollen', desc: 'Flexible Kontrollfahrten & Präsenz' },
+    { slug: 'brandwache', title: 'Brandwache', desc: 'Schutz vor Brandgefahren & Feuerkontrolle' },
+    { slug: 'baustellenbewachung', title: 'Baustellenbewachung', desc: 'Schutz von Baustellen & Material' },
+    { slug: 'bewachung-von-unterkuenften', title: 'Bewachung von Unterkünften', desc: 'Ordnung & Sicherheit in Unterkünften' },
+];
 
 export default function Nav({ isScrolled }: NavProps) {
     const [servicesOpen, setServicesOpen] = useState(false);
@@ -14,10 +23,50 @@ export default function Nav({ isScrolled }: NavProps) {
     const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
     const { images, loading } = useWebsiteImages();
     const logoUrl = images.home_logo || '/logo-transparent.svg';
+    const dropdownRef = useRef<HTMLLIElement>(null);
 
     const navTextClass = isScrolled
         ? 'text-[#3A3A3A] hover:text-[#587D85]'
         : 'text-white hover:text-[#587D85]';
+    const hamburgerColor = isScrolled || mobileOpen ? 'text-[#3A3A3A]' : 'text-white';
+
+    // Desktop-Dropdown: Outside-Click + ESC
+    useEffect(() => {
+        if (!servicesOpen) return;
+        const onClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setServicesOpen(false);
+            }
+        };
+        const onEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setServicesOpen(false);
+        };
+        document.addEventListener('mousedown', onClickOutside);
+        document.addEventListener('keydown', onEsc);
+        return () => {
+            document.removeEventListener('mousedown', onClickOutside);
+            document.removeEventListener('keydown', onEsc);
+        };
+    }, [servicesOpen]);
+
+    // Mobile-Menu: ESC schließt + Body-Scroll-Lock bei offenem Menü
+    useEffect(() => {
+        if (!mobileOpen) return;
+        const onEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setMobileOpen(false);
+        };
+        document.addEventListener('keydown', onEsc);
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.removeEventListener('keydown', onEsc);
+            document.body.style.overflow = '';
+        };
+    }, [mobileOpen]);
+
+    const closeMobile = () => {
+        setMobileOpen(false);
+        setMobileServicesOpen(false);
+    };
 
     return (
         <div
@@ -28,166 +77,95 @@ export default function Nav({ isScrolled }: NavProps) {
             }`}
         >
             {/* ================= TOP BAR ================= */}
-            <div className="bg-[#587D85] text-white py-3 px-6">
-                <div className="max-w-7xl mx-auto flex justify-end space-x-8 text-sm">
-                    <a href="tel:+49015755537863">01575 - 5537863</a>
-                    <a href="mailto:info@sicherpro.de">info@sicherpro.de</a>
+            <div className="bg-[#587D85] text-white py-2 sm:py-3 px-4 sm:px-6">
+                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-center sm:justify-end items-center gap-1 sm:gap-6 lg:gap-8 text-xs sm:text-sm">
+                    <a href="tel:+4915755537863" className="hover:text-[#D9DEDF] transition whitespace-nowrap">
+                        01575 - 5537863
+                    </a>
+                    <a href="mailto:info@sicherpro.de" className="hover:text-[#D9DEDF] transition whitespace-nowrap">
+                        info@sicherpro.de
+                    </a>
                 </div>
             </div>
 
             {/* ================= MAIN NAV ================= */}
-            <nav className="py-5 px-6">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <nav className="py-3 sm:py-5 px-4 sm:px-6">
+                <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
 
-                    {/* Logo – jetzt dynamisch */}
-                    <Link href="/">
+                    {/* Logo */}
+                    <Link href="/" className="shrink-0" onClick={closeMobile}>
                         {loading ? (
-                            <div className="w-[150px] h-[50px] bg-gray-200 animate-pulse rounded" />
+                            <div className="w-[110px] sm:w-[150px] h-[40px] sm:h-[50px] bg-gray-200 animate-pulse rounded" />
                         ) : (
                             <img
                                 src={logoUrl}
                                 alt="SicherPro Wachschutz GmbH"
-                                className="h-[50px] w-auto object-contain"
+                                className="h-[40px] sm:h-[50px] w-auto object-contain"
                             />
                         )}
                     </Link>
 
                     {/* ================= DESKTOP MENU ================= */}
-                    <ul className="hidden lg:flex items-center space-x-10 relative">
+                    <ul className="hidden lg:flex items-center gap-6 xl:gap-10 relative">
 
                         <li>
-                            <Link href="/" className={`${navTextClass} font-medium transition  `}>
+                            <Link href="/" className={`${navTextClass} font-medium transition`}>
                                 Startseite
                             </Link>
                         </li>
 
                         {/* ===== DESKTOP SERVICES DROPDOWN ===== */}
-                        <li className="relative">
+                        <li className="relative" ref={dropdownRef}>
                             <button
                                 type="button"
-                                onClick={() => setServicesOpen(prev => !prev)}
+                                onClick={() => setServicesOpen((prev) => !prev)}
                                 aria-expanded={servicesOpen}
+                                aria-haspopup="menu"
                                 className={`flex items-center gap-2 font-medium transition ${navTextClass}`}
                             >
                                 Dienstleistungen
                                 <svg
-                                    className={`w-4 h-4 transition-transform ${
-                                        servicesOpen ? 'rotate-180' : ''
-                                    }`}
+                                    className={`w-4 h-4 transition-transform ${servicesOpen ? 'rotate-180' : ''}`}
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
                                 >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 9l-7 7-7-7"
-                                    />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>
 
                             {/* Dropdown */}
                             <div
+                                role="menu"
                                 className={`
-                                    absolute top-full mt-6
+                                    absolute top-full mt-4 lg:mt-6
                                     left-1/2 -translate-x-1/2
-                                    w-[90vw] max-w-[960px]
-                                    bg-white rounded-3xl shadow-2xl border border-secondary/20
-                                    transition-all duration-300
+                                    w-[min(95vw,960px)]
+                                    bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-[#B2B2AC]/20
+                                    transition-all duration-300 origin-top
                                     ${
-                                    servicesOpen
-                                        ? 'opacity-100 translate-y-0'
-                                        : 'opacity-0 pointer-events-none -translate-y-4'
-                                }
+                                        servicesOpen
+                                            ? 'opacity-100 translate-y-0 scale-100'
+                                            : 'opacity-0 pointer-events-none -translate-y-4 scale-95'
+                                    }
                                 `}
                             >
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-6 sm:p-8">
-
-                                    <Link
-                                        href="/dienstleistungen/objektschutz"
-                                        className="group p-6 rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
-                                    >
-                                        <h4 className="text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
-                                            Objektschutz
-                                        </h4>
-                                        <p className="mt-2 text-sm text-[#3A3A3A]/70">
-                                            Schutz von Gebäuden & Anlagen
-                                        </p>
-                                    </Link>
-
-                                    <Link
-                                        href="/dienstleistungen/veranstaltungsschutz"
-                                        className="group p-6 rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
-                                    >
-                                        <h4 className="text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
-                                            Veranstaltungsschutz
-                                        </h4>
-                                        <p className="mt-2 text-sm text-[#3A3A3A]/70">
-                                            Sicherheit für Events
-                                        </p>
-                                    </Link>
-
-                                    <Link
-                                        href="/dienstleistungen/personenschutz"
-                                        className="group p-6 rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
-                                    >
-                                        <h4 className="text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
-                                            Personenschutz
-                                        </h4>
-                                        <p className="mt-2 text-sm text-[#3A3A3A]/70">
-                                            Schutz von Personen & VIPs
-                                        </p>
-                                    </Link>
-
-                                    <Link
-                                        href="/dienstleistungen/mobiler-wachdienst-revierkontrollen"
-                                        className="group p-6 rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
-                                    >
-                                        <h4 className="text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
-                                            Mobiler Wachdienst & Revierkontrollen
-                                        </h4>
-                                        <p className="mt-2 text-sm text-[#3A3A3A]/70">
-                                            Flexible Kontrollfahrten & Präsenz
-                                        </p>
-                                    </Link>
-
-                                    <Link
-                                        href="/dienstleistungen/brandwache"
-                                        className="group p-6 rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
-                                    >
-                                        <h4 className="text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
-                                            Brandwache
-                                        </h4>
-                                        <p className="mt-2 text-sm text-[#3A3A3A]/70">
-                                            Schutz vor Brandgefahren & Feuerkontrolle
-                                        </p>
-                                    </Link>
-
-                                    <Link
-                                        href="/dienstleistungen/baustellenbewachung"
-                                        className="group p-6 rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
-                                    >
-                                        <h4 className="text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
-                                            Baustellenbewachung
-                                        </h4>
-                                        <p className="mt-2 text-sm text-[#3A3A3A]/70">
-                                            Schutz von Baustellen & Material
-                                        </p>
-                                    </Link>
-
-                                    <Link
-                                        href="/dienstleistungen/bewachung-von-unterkuenften"
-                                        className="group p-6 rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
-                                    >
-                                        <h4 className="text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
-                                            Bewachung von Unterkünften
-                                        </h4>
-                                        <p className="mt-2 text-sm text-[#3A3A3A]/70">
-                                            Ordnung & Sicherheit in Unterkünften
-                                        </p>
-                                    </Link>
-
+                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-4 p-4 sm:p-6 lg:p-8 max-h-[70vh] overflow-y-auto">
+                                    {SERVICES.map((s) => (
+                                        <Link
+                                            key={s.slug}
+                                            href={`/dienstleistungen/${s.slug}`}
+                                            onClick={() => setServicesOpen(false)}
+                                            className="group p-4 sm:p-5 rounded-xl sm:rounded-2xl hover:bg-[#D9DEDF]/50 transition-colors duration-300"
+                                        >
+                                            <h4 className="text-base sm:text-lg font-semibold text-[#3A3A3A] group-hover:text-[#587D85]">
+                                                {s.title}
+                                            </h4>
+                                            <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-[#3A3A3A]/70">
+                                                {s.desc}
+                                            </p>
+                                        </Link>
+                                    ))}
                                 </div>
                             </div>
                         </li>
@@ -197,7 +175,6 @@ export default function Nav({ isScrolled }: NavProps) {
                                 Über uns
                             </Link>
                         </li>
-
                         <li>
                             <Link href="/kontakt" className={`${navTextClass} font-medium transition`}>
                                 Kontakt
@@ -207,11 +184,13 @@ export default function Nav({ isScrolled }: NavProps) {
 
                     {/* ================= MOBILE BUTTON ================= */}
                     <button
-                        className="lg:hidden"
-                        onClick={() => setMobileOpen(prev => !prev)}
+                        className="lg:hidden p-2 -mr-2"
+                        aria-label={mobileOpen ? 'Menü schließen' : 'Menü öffnen'}
+                        aria-expanded={mobileOpen}
+                        onClick={() => setMobileOpen((prev) => !prev)}
                     >
                         <svg
-                            className="w-7 h-7 text-[#3A3A3A]"
+                            className={`w-7 h-7 transition-colors ${hamburgerColor}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -220,7 +199,7 @@ export default function Nav({ isScrolled }: NavProps) {
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 strokeWidth={2}
-                                d="M4 6h16M4 12h16M4 18h16"
+                                d={mobileOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'}
                             />
                         </svg>
                     </button>
@@ -229,61 +208,85 @@ export default function Nav({ isScrolled }: NavProps) {
 
             {/* ================= MOBILE MENU ================= */}
             {mobileOpen && (
-                <div className="lg:hidden bg-white border-t border-secondary/20 shadow-xl">
-                    <ul className="flex flex-col p-6 space-y-5">
+                <>
+                    {/* Backdrop */}
+                    <div
+                        className="lg:hidden fixed inset-0 bg-black/30 z-40"
+                        onClick={closeMobile}
+                        aria-hidden="true"
+                    />
+                    {/* Panel */}
+                    <div className="lg:hidden bg-white border-t border-[#B2B2AC]/20 shadow-xl max-h-[calc(100vh-120px)] overflow-y-auto relative z-50">
+                        <ul className="flex flex-col p-5 sm:p-6 space-y-1">
 
-                        <Link href="/" className="text-lg font-medium text-dark">
-                            Startseite
-                        </Link>
-
-                        <button
-                            onClick={() => setMobileServicesOpen(prev => !prev)}
-                            className="flex justify-between items-center text-lg font-medium text-dark"
-                        >
-                            Dienstleistungen
-                            <svg
-                                className={`w-4 h-4 transition-transform ${
-                                    mobileServicesOpen ? 'rotate-180' : ''
-                                }`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M19 9l-7 7-7-7"
-                                />
-                            </svg>
-                        </button>
-
-                        {mobileServicesOpen && (
-                            <div className="pl-4 flex flex-col space-y-3 text-[#3A3A3A]">
-                                <Link href="/dienstleistungen/objektschutz">Objektschutz</Link>
-                                <Link href="/dienstleistungen/veranstaltungsschutz">Veranstaltungsschutz</Link>
-                                <Link href="/dienstleistungen/personenschutz">Personenschutz</Link>
-                                <Link href="/dienstleistungen/mobiler-wachdienst-revierkontrollen">
-                                    Mobiler Wachdienst & Revierkontrollen
+                            <li>
+                                <Link
+                                    href="/"
+                                    onClick={closeMobile}
+                                    className="block py-3 text-lg font-medium text-[#3A3A3A] hover:text-[#587D85] transition"
+                                >
+                                    Startseite
                                 </Link>
-                                <Link href="/dienstleistungen/brandwache">Brandwache</Link>
-                                <Link href="/dienstleistungen/baustellenbewachung">Baustellenbewachung</Link>
-                                <Link href="/dienstleistungen/bewachung-von-unterkuenften">
-                                    Bewachung von Unterkünften
+                            </li>
+
+                            <li>
+                                <button
+                                    onClick={() => setMobileServicesOpen((p) => !p)}
+                                    aria-expanded={mobileServicesOpen}
+                                    className="w-full flex justify-between items-center py-3 text-lg font-medium text-[#3A3A3A] hover:text-[#587D85] transition"
+                                >
+                                    Dienstleistungen
+                                    <svg
+                                        className={`w-5 h-5 transition-transform ${mobileServicesOpen ? 'rotate-180' : ''}`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+
+                                <div
+                                    className={`overflow-hidden transition-all duration-300 ${
+                                        mobileServicesOpen ? 'max-h-[600px]' : 'max-h-0'
+                                    }`}
+                                >
+                                    <div className="pl-4 py-2 flex flex-col space-y-1 border-l-2 border-[#587D85]/30">
+                                        {SERVICES.map((s) => (
+                                            <Link
+                                                key={s.slug}
+                                                href={`/dienstleistungen/${s.slug}`}
+                                                onClick={closeMobile}
+                                                className="block py-2 text-base text-[#3A3A3A] hover:text-[#587D85] transition"
+                                            >
+                                                {s.title}
+                                            </Link>
+                                        ))}
+                                    </div>
+                                </div>
+                            </li>
+
+                            <li>
+                                <Link
+                                    href="/ueber-uns"
+                                    onClick={closeMobile}
+                                    className="block py-3 text-lg font-medium text-[#3A3A3A] hover:text-[#587D85] transition"
+                                >
+                                    Über uns
                                 </Link>
-                            </div>
-                        )}
-
-
-                        <Link href="/ueber-uns" className="text-lg font-medium text-dark">
-                            Über uns
-                        </Link>
-
-                        <Link href="/kontakt" className="text-lg font-medium text-dark">
-                            Kontakt
-                        </Link>
-                    </ul>
-                </div>
+                            </li>
+                            <li>
+                                <Link
+                                    href="/kontakt"
+                                    onClick={closeMobile}
+                                    className="block py-3 text-lg font-medium text-[#3A3A3A] hover:text-[#587D85] transition"
+                                >
+                                    Kontakt
+                                </Link>
+                            </li>
+                        </ul>
+                    </div>
+                </>
             )}
         </div>
     );

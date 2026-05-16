@@ -43,11 +43,11 @@ export default function Brandwache() {
                     variants={container}
                     initial="hidden"
                     animate="visible"
-                    className="relative z-10 max-w-7xl mx-auto px-6 py-32 text-center text-white"
+                    className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24 md:py-32 text-center text-white"
                 >
                     <motion.h1
                         variants={item}
-                        className="text-5xl md:text-7xl font-bold mb-6"
+                        className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6"
                     >
                         Brandwache
                     </motion.h1>
@@ -67,7 +67,7 @@ export default function Brandwache() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6"
             >
                 <div className="max-w-5xl mx-auto text-center">
                     <motion.p
@@ -90,7 +90,7 @@ export default function Brandwache() {
                 viewport={{ once: true }}
                 className="pb-24 px-6"
             >
-                <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12">
+                <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12">
                     {[
                         {
                             title: 'Einsatz bei erhöhtem Brandrisiko',
@@ -125,9 +125,9 @@ export default function Brandwache() {
                         <motion.div
                             key={i}
                             variants={item}
-                            className="bg-white rounded-3xl p-10 shadow-xl border border-gray-100"
+                            className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-10 shadow-xl border border-gray-100"
                         >
-                            <h3 className="text-2xl font-bold mb-4 text-[#587D85]">
+                            <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-[#587D85]">
                                 {card.title}
                             </h3>
                             <p className="text-lg leading-relaxed text-[#3A3A3A]">
@@ -144,7 +144,7 @@ export default function Brandwache() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6 bg-[#587D85] text-white"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 bg-[#587D85] text-white"
             >
                 <div className="max-w-4xl mx-auto text-center">
                     <motion.h2

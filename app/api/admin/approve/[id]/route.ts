@@ -1,36 +1,85 @@
-import { NextResponse } from 'next/server';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, deleteDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { getSession } from '@/lib/auth-server';
+import { assertSameOrigin } from '@/lib/origin-check';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 function generateTempPassword() {
-    return Math.random().toString(36).slice(-12) + 'A1!@'; // Starkes temp Passwort (nur intern!)
+    return crypto.randomBytes(18).toString('base64url') + 'A1!';
 }
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+function safeEq(a: string, b: string) {
+    const ab = Buffer.from(a);
+    const bb = Buffer.from(b);
+    if (ab.length !== bb.length) return false;
+    return crypto.timingSafeEqual(ab, bb);
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const originError = assertSameOrigin(req);
+    if (originError) return originError;
+
     const { id } = await params;
 
+    const session = await getSession();
+    if (!session?.owner) {
+        return NextResponse.json({ error: 'Nur der Owner darf Anfragen freigeben.' }, { status: 403 });
+    }
+
+    const rl = rateLimit({ key: `approve:${getClientIp(req)}`, limit: 10, windowMs: 5 * 60 * 1000 });
+    if (!rl.success) {
+        return NextResponse.json({ error: 'Zu viele Versuche.' }, { status: 429 });
+    }
+
+    let token = '';
     try {
-        const snap = await getDoc(doc(db, 'pendingAdmins', id));
-        if (!snap.exists()) throw new Error('Anfrage nicht gefunden');
+        const body = await req.json().catch(() => ({}));
+        token = typeof body?.token === 'string' ? body.token : '';
+    } catch {
+        // ignore
+    }
 
-        const { email } = snap.data();
+    if (!token) {
+        return NextResponse.json({ error: 'Token erforderlich.' }, { status: 400 });
+    }
 
-        // Temp Passwort generieren (nur intern)
+    try {
+        const snap = await adminDb.collection('pendingAdmins').doc(id).get();
+        if (!snap.exists) {
+            return NextResponse.json({ error: 'Anfrage nicht gefunden.' }, { status: 404 });
+        }
+        const data = snap.data() as { email: string; token?: string };
+        if (!data.token || !safeEq(data.token, token)) {
+            return NextResponse.json({ error: 'Ungültiger Token.' }, { status: 403 });
+        }
+
         const tempPassword = generateTempPassword();
+        let userRecord;
+        try {
+            userRecord = await adminAuth.createUser({
+                email: data.email,
+                password: tempPassword,
+                emailVerified: false,
+                disabled: false,
+            });
+        } catch (e: unknown) {
+            const err = e as { code?: string };
+            if (err.code === 'auth/email-already-exists') {
+                userRecord = await adminAuth.getUserByEmail(data.email);
+            } else {
+                throw e;
+            }
+        }
 
-        // User erstellen
-        await createUserWithEmailAndPassword(auth, email, tempPassword);
+        await adminAuth.setCustomUserClaims(userRecord.uid, { admin: true });
+        const link = await adminAuth.generatePasswordResetLink(data.email);
 
-        // Sofort Password-Reset-Link senden (User setzt eigenes Passwort)
-        await sendPasswordResetEmail(auth, email);
+        await snap.ref.delete();
 
-        // Pending löschen
-        await deleteDoc(doc(db, 'pendingAdmins', id));
-
-        return NextResponse.redirect(new URL('/admin/approve-success', request.url));
-    } catch (err: any) {
-        console.error('Approval Error:', err);
-        return NextResponse.redirect(new URL('/admin/approve-error', request.url));
+        return NextResponse.json({ success: true, email: data.email, resetLink: link });
+    } catch (err) {
+        console.error('Approval-Fehler:', err);
+        return NextResponse.json({ error: 'Approval fehlgeschlagen.' }, { status: 500 });
     }
 }

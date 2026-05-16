@@ -43,11 +43,11 @@ export default function Baustellenbewachung() {
                     variants={container}
                     initial="hidden"
                     animate="visible"
-                    className="relative z-10 max-w-6xl mx-auto px-6 py-32 text-center"
+                    className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24 md:py-32 text-center"
                 >
                     <motion.h1
                         variants={fadeUp}
-                        className="text-4xl md:text-6xl font-bold mb-4"
+                        className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4"
                     >
                         Baustellenbewachung
                     </motion.h1>
@@ -66,7 +66,7 @@ export default function Baustellenbewachung() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6 max-w-5xl mx-auto space-y-16"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 max-w-5xl mx-auto space-y-10 sm:space-y-12 md:space-y-16"
             >
                 {[
                     {
@@ -95,7 +95,7 @@ export default function Baustellenbewachung() {
                         variants={fadeUp}
                         className="relative pl-8 border-l-4 border-[#587D85]/60"
                     >
-                        <h3 className="text-2xl font-bold mb-4">{block.title}</h3>
+                        <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">{block.title}</h3>
                         <p className="text-lg md:text-xl leading-relaxed text-[#374151]">{block.text}</p>
                     </motion.div>
                 ))}
@@ -107,16 +107,16 @@ export default function Baustellenbewachung() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="py-24 px-6 bg-[#587D85] text-white"
+                className="py-12 sm:py-16 md:py-24 px-4 sm:px-6 bg-[#587D85] text-white"
             >
                 <div className="max-w-4xl mx-auto text-center space-y-6">
-                    <motion.p variants={fadeUp} className="text-xl md:text-2xl leading-relaxed">
+                    <motion.p variants={fadeUp} className="text-lg sm:text-xl md:text-2xl leading-relaxed">
                         Sichern Sie Ihre Baustellen effektiv – mit professioneller Baustellenbewachung von SicherPro Wachschutz.
                     </motion.p>
                     <motion.div variants={fadeUp}>
                         <Link
                             href="/kontakt"
-                            className="inline-block bg-white px-14 py-5 rounded-full text-lg font-bold text-[#587D85] hover:bg-[#D9E2E6] transition shadow-lg"
+                            className="inline-block bg-white px-8 sm:px-14 py-3 sm:py-5 rounded-full text-base sm:text-lg font-bold text-[#587D85] hover:bg-[#D9E2E6] transition shadow-lg"
                         >
                             Beratung anfragen
                         </Link>

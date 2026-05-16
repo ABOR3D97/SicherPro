@@ -1,14 +1,33 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { PencilIcon, TrashIcon, ArchiveBoxIcon, CheckIcon, EyeIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import {
+    PencilSquareIcon,
+    TrashIcon,
+    ArchiveBoxIcon,
+    ArchiveBoxXMarkIcon,
+    CheckIcon,
+    EyeIcon,
+    XMarkIcon,
+    MagnifyingGlassIcon,
+    FunnelIcon,
+} from '@heroicons/react/24/outline';
 import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { format } from 'date-fns';
-import { signOut } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore';
-import Link from 'next/link';
+import {
+    collection,
+    onSnapshot,
+    doc,
+    updateDoc,
+    deleteDoc,
+    orderBy,
+    query,
+    type FirestoreError,
+} from 'firebase/firestore';
+import { useToast } from '@/components/admin/Toast';
+import FirestoreErrorBanner from '@/components/admin/FirestoreErrorBanner';
 
 interface Inquiry {
     id: string;
@@ -16,337 +35,386 @@ interface Inquiry {
     email: string;
     phone?: string;
     message: string;
-    createdAt: Date;
+    createdAt: Date | null;
     read: boolean;
     archived: boolean;
 }
 
+function parseTimestamp(raw: unknown): Date | null {
+    if (!raw) return null;
+    const t = raw as { toDate?: () => Date; seconds?: number };
+    if (typeof t.toDate === 'function') {
+        try {
+            return t.toDate();
+        } catch {
+            return null;
+        }
+    }
+    // Manche Records haben { seconds, nanoseconds }
+    if (typeof t.seconds === 'number') {
+        return new Date(t.seconds * 1000);
+    }
+    return null;
+}
+
+function formatDate(d: Date | null) {
+    if (!d) return '— (unbekannt)';
+    return format(d, 'dd.MM.yyyy HH:mm');
+}
+
+type Tab = 'active' | 'unread' | 'archived';
+type SortKey = 'date_desc' | 'date_asc' | 'name';
+
 export default function ContactManagement() {
-    const [user, setUser] = useState<any>(null);
     const [inquiries, setInquiries] = useState<Inquiry[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [selected, setSelected] = useState<Inquiry | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const router = useRouter();
+    const [tab, setTab] = useState<Tab>('active');
+    const [sort, setSort] = useState<SortKey>('date_desc');
+    const toast = useToast();
 
-    // Auth
     useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-            if (currentUser) setUser(currentUser);
-            else router.push('/admin/login');
-        });
-        return () => unsubscribe();
-    }, [router]);
-
-    // Echtzeit-Anfragen
-    useEffect(() => {
-        if (!user) return;
-        setLoading(true);
-
-        const q = query(collection(db, 'inquiries'), orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(
-            q,
-            (snapshot) => {
-                const data: Inquiry[] = snapshot.docs.map((docSnapshot) => {
-                    const d = docSnapshot.data();
-                    return {
-                        id: docSnapshot.id,
-                        name: d.name ?? '',
-                        email: d.email ?? '',
-                        phone: d.phone ?? undefined,
-                        message: d.message ?? '',
-                        createdAt: d.createdAt?.toDate?.() ?? new Date(),
-                        read: d.read ?? false,
-                        archived: d.archived ?? false,
-                    };
-                });
-                setInquiries(data);
-                setLoading(false);
-            },
-            (error) => {
-                console.error('Fehler beim Laden:', error);
-                setLoading(false);
+        let unsubSnap: (() => void) | null = null;
+        const unsubAuth = onAuthStateChanged(auth, (user) => {
+            // Vorhandene Subscription beenden bevor neue startet.
+            if (unsubSnap) {
+                unsubSnap();
+                unsubSnap = null;
             }
-        );
+            if (!user) {
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
+            setLoadError(null);
+            const q = query(collection(db, 'inquiries'), orderBy('createdAt', 'desc'));
+            unsubSnap = onSnapshot(
+                q,
+                (snap) => {
+                    const data: Inquiry[] = snap.docs.map((d) => {
+                        const x = d.data() as Record<string, unknown>;
+                        return {
+                            id: d.id,
+                            name: (x.name as string) ?? '',
+                            email: (x.email as string) ?? '',
+                            phone: (x.phone as string) ?? undefined,
+                            message: (x.message as string) ?? '',
+                            createdAt: parseTimestamp(x.createdAt),
+                            read: Boolean(x.read),
+                            archived: Boolean(x.archived),
+                        };
+                    });
+                    setInquiries(data);
+                    setLoadError(null);
+                    setLoading(false);
+                },
+                (err: FirestoreError) => {
+                    console.error('Inquiries-Read fehlgeschlagen:', err);
+                    setLoadError(
+                        err.code === 'permission-denied'
+                            ? 'Keine Berechtigung zum Lesen der Anfragen. Firestore-Rules prüfen (admin-Custom-Claim erforderlich).'
+                            : `Lesefehler: ${err.code} – ${err.message}`,
+                    );
+                    setLoading(false);
+                },
+            );
+        });
+        return () => {
+            unsubAuth();
+            if (unsubSnap) unsubSnap();
+        };
+    }, []);
 
-        return () => unsubscribe();
-    }, [user]);
-
-    // Aktionen
-    const markAsRead = async (id: string) => {
-        await updateDoc(doc(db, 'inquiries', id), { read: true });
+    const wrap = async (action: Promise<unknown>, ok: string, fail = 'Aktion fehlgeschlagen') => {
+        try {
+            await action;
+            toast.success(ok);
+        } catch (e) {
+            console.error(e);
+            toast.error(fail);
+        }
     };
 
-    const archive = async (id: string) => {
-        await updateDoc(doc(db, 'inquiries', id), { archived: true });
-    };
+    const markAsRead = (id: string) =>
+        wrap(updateDoc(doc(db, 'inquiries', id), { read: true }), 'Als gelesen markiert');
+    const markAsUnread = (id: string) =>
+        wrap(updateDoc(doc(db, 'inquiries', id), { read: false }), 'Als ungelesen markiert');
+    const archive = (id: string) =>
+        wrap(updateDoc(doc(db, 'inquiries', id), { archived: true }), 'Anfrage archiviert');
+    const unarchive = (id: string) =>
+        wrap(updateDoc(doc(db, 'inquiries', id), { archived: false }), 'Aus Archiv geholt');
 
     const deleteInquiry = async (id: string) => {
         if (!confirm('Anfrage wirklich unwiderruflich löschen?')) return;
-        await deleteDoc(doc(db, 'inquiries', id));
+        try {
+            await deleteDoc(doc(db, 'inquiries', id));
+            toast.success('Anfrage gelöscht');
+            if (selected?.id === id) setSelected(null);
+        } catch (e) {
+            console.error(e);
+            toast.error('Löschen fehlgeschlagen');
+        }
     };
 
-    const reply = (email: string, name: string, message: string) => {
+    const reply = (i: Inquiry) => {
         const subject = encodeURIComponent('Antwort auf Ihre Anfrage bei SicherPro');
         const body = encodeURIComponent(
-            `Sehr geehrte/r ${name},\n\nvielen Dank für Ihre Nachricht:\n"${message}"\n\nHier unsere Antwort:\n\nMit freundlichen Grüßen\nSicherPro Team`
+            `Sehr geehrte/r ${i.name},\n\nvielen Dank für Ihre Nachricht:\n"${i.message}"\n\nHier unsere Antwort:\n\nMit freundlichen Grüßen\nSicherPro Team`,
         );
-        window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+        window.location.href = `mailto:${i.email}?subject=${subject}&body=${body}`;
+        if (!i.read) {
+            updateDoc(doc(db, 'inquiries', i.id), { read: true }).catch(() => {});
+        }
+        toast.info('E-Mail-Client wird geöffnet …');
     };
 
-    const handleLogout = async () => {
-        await signOut(auth);
-        router.push('/admin/login');
+    const counts = {
+        active: inquiries.filter((i) => !i.archived).length,
+        unread: inquiries.filter((i) => !i.read && !i.archived).length,
+        archived: inquiries.filter((i) => i.archived).length,
     };
 
-    // Filter & Berechnungen
-    const filteredInquiries = inquiries.filter(
-        (i) =>
-            i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            i.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            i.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (i.phone && i.phone.includes(searchTerm))
-    );
-
-    const activeInquiries = filteredInquiries.filter((i) => !i.archived);
-    const archivedInquiries = filteredInquiries.filter((i) => i.archived);
-    const unreadCount = activeInquiries.filter((i) => !i.read).length;
+    const visible = useMemo(() => {
+        const term = searchTerm.toLowerCase().trim();
+        const list = inquiries.filter((i) => {
+            if (tab === 'archived' && !i.archived) return false;
+            if (tab === 'unread' && (i.read || i.archived)) return false;
+            if (tab === 'active' && i.archived) return false;
+            if (term) {
+                const hay = `${i.name} ${i.email} ${i.message} ${i.phone ?? ''}`.toLowerCase();
+                if (!hay.includes(term)) return false;
+            }
+            return true;
+        });
+        const ts = (d: Date | null) => d?.getTime() ?? 0;
+        switch (sort) {
+            case 'date_asc':
+                return [...list].sort((a, b) => ts(a.createdAt) - ts(b.createdAt));
+            case 'name':
+                return [...list].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+            default:
+                return list;
+        }
+    }, [inquiries, searchTerm, tab, sort]);
 
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-[#D9DEDF]">
-                <div className="text-2xl text-[#3A3A3A]">Lade Anfragen...</div>
-            </div>
-        );
+        return <div className="p-10 text-slate-500">Lade Anfragen …</div>;
     }
 
     return (
-        <main className="min-h-screen bg-[#D9DEDF] text-[#3A3A3A]">
-            {/* Header */}
-            <header className="bg-[#587D85] text-white py-8 px-6 shadow-2xl">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div>
-                        <h1 className="text-4xl font-bold">Admin Dashboard</h1>
-                        <p className="text-[#D9DEDF] mt-2">Angemeldet als: {user?.email}</p>
-                    </div>
-                    <button
-                        onClick={handleLogout}
-                        className="bg-white text-[#587D85] px-8 py-3 rounded-full font-bold hover:bg-[#3A3A3A] hover:text-white transition-all shadow-lg"
-                    >
-                        Abmelden
-                    </button>
-                </div>
-            </header>
+        <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+            <div className="mb-8">
+                <h1 className="text-3xl lg:text-4xl font-bold text-[#1E293B]">Anfragen</h1>
+                <p className="text-slate-500 mt-1">{counts.active} aktiv · {counts.unread} ungelesen · {counts.archived} archiviert</p>
+            </div>
 
-            {/* Willkommen & Navigation */}
-            <section className="max-w-7xl mx-auto py-16 px-6">
-                <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-3xl p-12 shadow-2xl text-center"
-                >
-                    <h2 className="text-4xl font-bold mb-8 text-[#3A3A3A]">Willkommen im Admin-Bereich</h2>
-                    <p className="text-xl text-[#B2B2AC] max-w-3xl mx-auto leading-relaxed mb-12">
-                        Verwalten Sie Bilder, Kontaktdaten und alle eingehenden Anfragen übersichtlich und professionell.
-                    </p>
-                    <div className="flex flex-col md:flex-row gap-6 justify-center">
-                        <Link
-                            href="/admin/dashboard"
-                            className="bg-[#587D85] text-white py-4 px-8 rounded-2xl text-xl font-bold hover:bg-[#3A3A3A] transition-all shadow-lg text-center"
-                        >
-                            Zurück zum Dashboard
-                        </Link>
-                        <Link
-                            href="/admin/dashboard/image-management"
-                            className="bg-[#587D85] text-white py-4 px-8 rounded-2xl text-xl font-bold hover:bg-[#3A3A3A] transition-all shadow-lg text-center"
-                        >
-                            Bilder verwalten
-                        </Link>
-                    </div>
-                </motion.div>
-            </section>
+            {loadError && <FirestoreErrorBanner message={loadError} />}
 
-            {/* Suche */}
-            <section className="max-w-7xl mx-auto px-6 mb-8">
-                <div className="relative">
-                    <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-[#587D85]" />
+            {/* Toolbar */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-6 flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                    <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Nach Name, E-Mail oder Nachricht suchen..."
+                        placeholder="Name, E-Mail, Telefon, Nachricht …"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-14 pr-6 py-4 rounded-2xl bg-white border-2 border-[#B2B2AC] focus:border-[#587D85] transition-all outline-none shadow-md"
+                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#587D85] focus:bg-white outline-none transition"
                     />
                 </div>
-            </section>
-
-            {/* Aktive Anfragen */}
-            <section className="max-w-7xl mx-auto px-6 mb-12">
-                <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-3xl md:text-4xl font-bold text-[#3A3A3A]">
-                        Aktive Anfragen ({activeInquiries.length})
-                    </h2>
-                    {unreadCount > 0 && (
-                        <span className="bg-green-500 text-white px-4 py-2 rounded-full font-bold">
-              {unreadCount} ungelesen
-            </span>
-                    )}
+                <div className="flex gap-3">
+                    <div className="flex bg-slate-100 rounded-xl p-1">
+                        {(['active', 'unread', 'archived'] as Tab[]).map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => setTab(t)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                                    tab === t ? 'bg-white text-[#1E293B] shadow' : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                {t === 'active' && `Aktiv (${counts.active})`}
+                                {t === 'unread' && `Ungelesen (${counts.unread})`}
+                                {t === 'archived' && `Archiv (${counts.archived})`}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="relative">
+                        <FunnelIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <select
+                            value={sort}
+                            onChange={(e) => setSort(e.target.value as SortKey)}
+                            className="pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-[#587D85]"
+                        >
+                            <option value="date_desc">Neueste zuerst</option>
+                            <option value="date_asc">Älteste zuerst</option>
+                            <option value="name">Name (A–Z)</option>
+                        </select>
+                    </div>
                 </div>
+            </div>
 
-                {activeInquiries.length === 0 ? (
-                    <div className="bg-white rounded-3xl p-12 text-center shadow-lg">
-                        <p className="text-xl text-gray-600">Keine aktiven Anfragen vorhanden.</p>
+            {/* Table */}
+            {visible.length === 0 ? (
+                <div className="bg-white rounded-2xl p-16 text-center border border-slate-100 shadow-sm">
+                    <p className="text-slate-500">Keine Anfragen in dieser Ansicht.</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            <tr>
+                                <th className="px-6 py-3 w-8"></th>
+                                <th className="px-6 py-3">Absender</th>
+                                <th className="px-6 py-3 hidden md:table-cell">Nachricht</th>
+                                <th className="px-6 py-3 hidden sm:table-cell whitespace-nowrap">Datum</th>
+                                <th className="px-6 py-3 text-right">Aktionen</th>
+                            </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                            {visible.map((i) => (
+                                <tr
+                                    key={i.id}
+                                    className={`hover:bg-slate-50 transition ${!i.read && !i.archived ? 'bg-emerald-50/30' : ''}`}
+                                >
+                                    <td className="px-6 py-4">
+                                        <span
+                                            className={`block w-2 h-2 rounded-full ${
+                                                i.archived
+                                                    ? 'bg-slate-300'
+                                                    : i.read
+                                                        ? 'bg-slate-300'
+                                                        : 'bg-emerald-500'
+                                            }`}
+                                            title={i.archived ? 'archiviert' : i.read ? 'gelesen' : 'neu'}
+                                        />
+                                    </td>
+                                    <td className="px-6 py-4 min-w-[180px]">
+                                        <p className="font-semibold text-[#1E293B]">{i.name}</p>
+                                        <p className="text-sm text-slate-500 break-all">{i.email}</p>
+                                        {i.phone && <p className="text-xs text-slate-400">{i.phone}</p>}
+                                    </td>
+                                    <td className="px-6 py-4 hidden md:table-cell max-w-md">
+                                        <p className="text-sm text-slate-600 line-clamp-2">{i.message}</p>
+                                    </td>
+                                    <td className="px-6 py-4 hidden sm:table-cell text-sm text-slate-500 whitespace-nowrap">
+                                        {formatDate(i.createdAt)}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center justify-end gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    setSelected(i);
+                                                    if (!i.read) markAsRead(i.id);
+                                                }}
+                                                title="Anzeigen"
+                                                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-[#587D85]"
+                                            >
+                                                <EyeIcon className="w-5 h-5" />
+                                            </button>
+                                            <button
+                                                onClick={() => reply(i)}
+                                                title="Antworten"
+                                                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-[#587D85]"
+                                            >
+                                                <PencilSquareIcon className="w-5 h-5" />
+                                            </button>
+                                            {!i.archived ? (
+                                                <button
+                                                    onClick={() => archive(i.id)}
+                                                    title="Archivieren"
+                                                    className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-amber-600"
+                                                >
+                                                    <ArchiveBoxIcon className="w-5 h-5" />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => unarchive(i.id)}
+                                                    title="Aus Archiv holen"
+                                                    className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-emerald-600"
+                                                >
+                                                    <ArchiveBoxXMarkIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                            {i.read ? (
+                                                <button
+                                                    onClick={() => markAsUnread(i.id)}
+                                                    title="Als ungelesen markieren"
+                                                    className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-emerald-600"
+                                                >
+                                                    <CheckIcon className="w-5 h-5 rotate-180" />
+                                                </button>
+                                            ) : null}
+                                            <button
+                                                onClick={() => deleteInquiry(i.id)}
+                                                title="Löschen"
+                                                className="p-2 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600"
+                                            >
+                                                <TrashIcon className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {activeInquiries.map((i) => (
-                            <motion.div
-                                key={i.id}
-                                initial={{ opacity: 0, y: 30 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-white rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all relative overflow-hidden"
-                            >
-                                {!i.read && (
-                                    <div className="absolute top-0 left-0 bg-green-500 text-white px-4 py-1 text-sm font-bold rounded-br-2xl">
-                                        NEU
-                                    </div>
-                                )}
-                                <div className="mt-6">
-                                    <h3 className="text-2xl font-bold mb-2 break-words">{i.name}</h3>
-                                    <p className="text-[#587D85] mb-4 break-words">
-                                        {i.email} {i.phone && <span className="text-[#3A3A3A]">| {i.phone}</span>}
-                                    </p>
-                                    <p className="text-gray-700 mb-6 line-clamp-4 break-words">{i.message}</p>
-                                    <p className="text-sm text-gray-500 mb-6">{format(i.createdAt, 'dd.MM.yyyy HH:mm')}</p>
-                                </div>
+                </div>
+            )}
 
-                                <div className="flex justify-end gap-4">
-                                    {!i.read && (
-                                        <button
-                                            onClick={() => markAsRead(i.id)}
-                                            title="Als gelesen markieren"
-                                            className="text-green-600 hover:text-green-800"
-                                        >
-                                            <CheckIcon className="w-6 h-6" />
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => setSelectedInquiry(i)}
-                                        title="Details anzeigen"
-                                        className="text-blue-600 hover:text-blue-800"
-                                    >
-                                        <EyeIcon className="w-6 h-6" />
-                                    </button>
-                                    <button
-                                        onClick={() => reply(i.email, i.name, i.message)}
-                                        title="Antworten"
-                                        className="text-blue-600 hover:text-blue-800"
-                                    >
-                                        <PencilIcon className="w-6 h-6" />
-                                    </button>
-                                    <button
-                                        onClick={() => archive(i.id)}
-                                        title="Archivieren"
-                                        className="text-yellow-600 hover:text-yellow-800"
-                                    >
-                                        <ArchiveBoxIcon className="w-6 h-6" />
-                                    </button>
-                                    <button
-                                        onClick={() => deleteInquiry(i.id)}
-                                        title="Löschen"
-                                        className="text-red-600 hover:text-red-800"
-                                    >
-                                        <TrashIcon className="w-6 h-6" />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                )}
-            </section>
-
-            {/* Archivierte Anfragen */}
-            <section className="max-w-7xl mx-auto px-6 mb-20">
-                <h2 className="text-3xl md:text-4xl font-bold mb-8 text-[#3A3A3A]">
-                    Archivierte Anfragen ({archivedInquiries.length})
-                </h2>
-
-                {archivedInquiries.length === 0 ? (
-                    <div className="bg-white rounded-3xl p-12 text-center shadow-lg">
-                        <p className="text-xl text-gray-600">Keine archivierten Anfragen.</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {archivedInquiries.map((i) => (
-                            <motion.div
-                                key={i.id}
-                                initial={{ opacity: 0, y: 30 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-gray-50 rounded-3xl p-8 shadow-xl opacity-90"
-                            >
-                                <h3 className="text-2xl font-bold mb-2 break-words">{i.name}</h3>
-                                <p className="text-[#587D85] mb-4 break-words">
-                                    {i.email} {i.phone && <span className="text-[#3A3A3A]">| {i.phone}</span>}
-                                </p>
-                                <p className="text-gray-700 mb-6 line-clamp-4 break-words">{i.message}</p>
-                                <p className="text-sm text-gray-500 mb-6">{format(i.createdAt, 'dd.MM.yyyy HH:mm')}</p>
-
-                                <div className="flex justify-end gap-4">
-                                    <button
-                                        onClick={() => setSelectedInquiry(i)}
-                                        title="Details anzeigen"
-                                        className="text-blue-600 hover:text-blue-800"
-                                    >
-                                        <EyeIcon className="w-6 h-6" />
-                                    </button>
-                                    <button
-                                        onClick={() => deleteInquiry(i.id)}
-                                        title="Löschen"
-                                        className="text-red-600 hover:text-red-800"
-                                    >
-                                        <TrashIcon className="w-6 h-6" />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                )}
-            </section>
-
-            {/* Detail-Modal */}
-            {selectedInquiry && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6" onClick={() => setSelectedInquiry(null)}>
+            {/* Detail Modal */}
+            {selected && (
+                <div
+                    className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+                    onClick={() => setSelected(null)}
+                >
                     <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
+                        initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white rounded-3xl p-10 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+                        className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h3 className="text-3xl font-bold mb-2">{selectedInquiry.name}</h3>
-                                <p className="text-[#587D85] text-lg">
-                                    {selectedInquiry.email} {selectedInquiry.phone && `| ${selectedInquiry.phone}`}
+                        <div className="flex justify-between items-start p-6 border-b border-slate-100">
+                            <div className="min-w-0">
+                                <h3 className="text-xl font-bold text-[#1E293B]">{selected.name}</h3>
+                                <p className="text-[#587D85] mt-1 break-all">{selected.email}</p>
+                                {selected.phone && <p className="text-sm text-slate-500">{selected.phone}</p>}
+                                <p className="text-xs text-slate-400 mt-2">
+                                    {formatDate(selected.createdAt)}
                                 </p>
                             </div>
                             <button
-                                onClick={() => setSelectedInquiry(null)}
-                                className="text-gray-500 hover:text-gray-900"
+                                onClick={() => setSelected(null)}
+                                className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                             >
-                                <XMarkIcon className="w-8 h-8" />
+                                <XMarkIcon className="w-6 h-6" />
                             </button>
                         </div>
-
-                        <div className="bg-gray-50 rounded-2xl p-6 mb-6">
-                            <p className="text-gray-800 whitespace-pre-wrap text-lg leading-relaxed">{selectedInquiry.message}</p>
+                        <div className="p-6">
+                            <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{selected.message}</p>
                         </div>
-
-                        <div className="flex justify-between items-center">
-                            <p className="text-sm text-gray-500">{format(selectedInquiry.createdAt, 'dd.MM.yyyy HH:mm')}</p>
+                        <div className="px-6 py-4 bg-slate-50 flex flex-col-reverse sm:flex-row justify-end gap-3 border-t border-slate-100">
                             <button
-                                onClick={() => reply(selectedInquiry.email, selectedInquiry.name, selectedInquiry.message)}
-                                className="bg-[#587D85] text-white px-8 py-3 rounded-full font-bold hover:bg-[#3A3A3A] transition-all shadow-lg"
+                                onClick={() => deleteInquiry(selected.id)}
+                                className="px-5 py-2.5 rounded-xl text-red-600 hover:bg-red-50 font-medium"
+                            >
+                                Löschen
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (selected.archived) unarchive(selected.id);
+                                    else archive(selected.id);
+                                    setSelected(null);
+                                }}
+                                className="px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-white font-medium"
+                            >
+                                {selected.archived ? 'Aus Archiv holen' : 'Archivieren'}
+                            </button>
+                            <button
+                                onClick={() => reply(selected)}
+                                className="px-5 py-2.5 rounded-xl bg-[#587D85] text-white font-bold hover:bg-[#3A3A3A]"
                             >
                                 Per E-Mail antworten
                             </button>
@@ -354,13 +422,6 @@ export default function ContactManagement() {
                     </motion.div>
                 </div>
             )}
-
-            {/* Footer */}
-            <footer className="bg-[#3A3A3A] text-white py-12 px-6 mt-auto">
-                <div className="max-w-7xl mx-auto text-center">
-                    <p className="text-[#B2B2AC]">Admin Dashboard – SicherPro Wachschutz GmbH</p>
-                </div>
-            </footer>
-        </main>
+        </div>
     );
 }
